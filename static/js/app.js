@@ -47,6 +47,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialization
     function init() {
+        console.log('Initializing typing test application...');
+        
+        // Make sure the typing text element is visible
+        if (typingTextElement) {
+            typingTextElement.style.display = 'block';
+            typingTextElement.style.visibility = 'visible';
+            console.log('Set typingTextElement to visible');
+        }
+        
+        // Make sure the typing container is visible
+        const typingContainer = document.querySelector('.typing-container');
+        if (typingContainer) {
+            typingContainer.style.display = 'block';
+            typingContainer.style.visibility = 'visible';
+            console.log('Set typingContainer to visible');
+        }
+        
+        // Generate a persistent user ID if not already present
+        if (!localStorage.getItem('userId')) {
+            userId = `user_${Math.random().toString(36).substring(2, 9)}`;
+            localStorage.setItem('userId', userId);
+        } else {
+            userId = localStorage.getItem('userId');
+        }
+        
+        console.log(`Initialized with userId: ${userId}`);
+        
         // Set focus to input field
         inputField.focus();
 
@@ -95,47 +122,179 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load new typing text from server
     function loadNewText() {
-        // Show loading state
-        typingTextElement.innerHTML = 'Loading...';
+        console.log('loadNewText called');
+        // Make sure typing container and text elements are visible before showing loading state
+        document.querySelector('.typing-container').style.display = 'block';
+        typingTextElement.style.display = 'block';
+        typingTextElement.style.visibility = 'visible';
+        
+        // Show a visible loading message
+        typingTextElement.innerHTML = '<span class="loading">Loading new text...</span>';
+        console.log('Set loading message in typingTextElement');
+        
+        // Use the persistent user ID instead of a temporary debug ID
+        console.log(`Fetching text with userId: ${userId} and difficulty: ${difficulty}`);
         
         // Fetch new text based on difficulty and user ID
-        fetch(`/api/get_text?user_id=${userId}&difficulty=${difficulty}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (!data || !data.text) {
-                    throw new Error('Invalid response data');
-                }
-                currentText = data.text;
-                renderText();
-                resetTestState();
-            })
-            .catch(error => {
-                console.error('Error fetching text:', error);
-                // Fallback text for testing
-                currentText = "The quick brown fox jumps over the lazy dog. This is a simple typing test to measure your speed and accuracy.";
-                renderText();
-                resetTestState();
+        // Log request details for debugging
+        console.log(`Making request to: /api/get_text?user_id=${userId}&difficulty=${difficulty}`);
+        
+        fetch(`/api/get_text?user_id=${userId}&difficulty=${difficulty}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            // Add timeout to prevent hanging requests
+            signal: AbortSignal.timeout(8000) // 8 second timeout
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', [...response.headers.entries()]);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            console.log('Parsing response JSON');
+            return response.json().catch(jsonError => {
+                console.error('JSON parsing error:', jsonError);
+                throw new Error('Failed to parse server response');
             });
+        })
+        .then(data => {
+            console.log('Response data received:', data);
+            
+            // Check if the response contains valid text
+            if (!data || !data.text || data.text.trim().length < 10) {
+                console.warn('Invalid or too short text received:', data);
+                throw new Error('Invalid response: Text too short or missing');
+            }
+            
+            // If there's an error message but we still got text, log it but continue
+            if (data.error) {
+                console.warn('Server reported an error but provided text:', data.error);
+            }
+            
+            // Set the current text and render it
+            currentText = data.text.trim();
+            console.log('Text loaded successfully, length:', currentText.length);
+            console.log('First 50 chars:', currentText.substring(0, 50) + '...');
+            
+            // Make sure the typing container is visible
+            document.querySelector('.typing-container').style.display = 'block';
+            
+            // Force an immediate update to clear the loading message
+            typingTextElement.innerHTML = '';
+            
+            // Force a small delay to ensure UI updates
+            setTimeout(() => {
+                console.log('Calling renderText after delay');
+                renderText();
+                
+                // Reset test parameters without loading new text
+                resetTestParameters();
+                
+                // Force focus on input field
+                inputField.focus();
+            }, 200);
+        })
+        .catch(error => {
+            console.error('Error loading text:', error.message || error);
+            
+            // First fallback attempt: Try with a different difficulty
+            const fallbackDifficulty = difficulty === 'easy' ? 'medium' : 'easy';
+            console.log(`Attempting fallback with different difficulty: ${fallbackDifficulty}`);
+            
+            typingTextElement.innerHTML = '<span class="loading">Trying alternative text...</span>';
+            
+            // Try fetching with the fallback difficulty
+            fetch(`/api/get_text?user_id=${userId}&difficulty=${fallbackDifficulty}`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Cache-Control': 'no-cache'
+                },
+                signal: AbortSignal.timeout(3000) // shorter timeout for fallback
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.text && data.text.trim().length >= 10) {
+                    // Fallback succeeded
+                    console.log('Fallback text loaded successfully');
+                    currentText = data.text.trim();
+                    renderText();
+                    // Reset the test state
+                    resetTest();
+                } else {
+                    throw new Error('Fallback text also invalid');
+                }
+            })
+            .catch(fallbackError => {
+                // Ultimate fallback: Use guaranteed text that doesn't require a server request
+                console.error('Even fallback fetch failed:', fallbackError.message || fallbackError);
+                console.log('Using ultimate fallback text');
+                
+                // Guaranteed fallback typing text with a variety of characters
+                currentText = "The quick brown fox jumps over the lazy dog. Practice improves typing speed and accuracy. "
+                             + "Keep your fingers on the home row keys: A S D F J K L ;"
+                             + "Focus on accuracy first, then speed will follow naturally.";
+                
+                renderText();
+                // Reset the test state
+                resetTest();
+            });
+        });
     }
 
     // Render text with character spans
     function renderText() {
+        // Log the currentText before rendering to help debug
+        console.log('Rendering text, currentText is:', currentText);
+        console.log('currentText length:', currentText.length);
+        console.log('currentText type:', typeof currentText);
+        
+        // If text is empty or invalid, show an error message
+        if (!currentText || currentText.length === 0) {
+            typingTextElement.innerHTML = '<span class="error" style="color:red;font-weight:bold;">Error: No text available. Please refresh and try again.</span>';
+            return;
+        }
+        
+        // Make sure the typing container is visible first
+        const typingContainer = document.querySelector('.typing-container');
+        typingContainer.style.display = 'block';
+        
+        // Make sure the typing text element is visible
+        typingTextElement.style.display = 'block';
+        
+        // Clear existing content - use direct assignment for better performance
         typingTextElement.innerHTML = '';
+        
+        // Create a document fragment for better performance
+        const fragment = document.createDocumentFragment();
+        
         // Split text into characters and create spans
         currentText.split('').forEach(char => {
             const span = document.createElement('span');
             span.textContent = char;
-            typingTextElement.appendChild(span);
+            // Add the span to the fragment
+            fragment.appendChild(span);
         });
+        
+        // Add all spans to the DOM at once
+        typingTextElement.appendChild(fragment);
+        
+        console.log('Text rendered with', typingTextElement.children.length, 'characters');
+        console.log('First few spans:', Array.from(typingTextElement.children).slice(0,5).map(s => s.textContent).join(''));
         
         // Set initial active character
         if (typingTextElement.children.length > 0) {
             typingTextElement.children[0].classList.add('active');
+            console.log('Set first character as active');
+            
+            // Force the element to be visible
+            typingTextElement.style.visibility = 'visible';
+            typingTextElement.style.opacity = '1';
             // Position cursor at first character
             updateCursorPosition(0);
         }
@@ -253,8 +412,8 @@ document.addEventListener('DOMContentLoaded', () => {
         restartBtn.style.display = 'block';
     }
 
-    // Reset test
-    function resetTest() {
+    // Reset test parameters without loading new text
+    function resetTestParameters() {
         // Stop timer
         clearInterval(timer);
         
@@ -281,11 +440,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear input field
         inputField.value = '';
         
-        // Load new text
-        loadNewText();
-        
         // Focus input field
         inputField.focus();
+    }
+    
+    // Reset test and load new text
+    function resetTest() {
+        // Reset all parameters
+        resetTestParameters();
+        
+        // Load new text (only here, not in resetTestParameters)
+        loadNewText();
     }
 
     // Complete the test

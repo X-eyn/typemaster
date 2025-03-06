@@ -98,6 +98,8 @@ header {
     overflow-y: auto;
     display: flex;
     align-items: flex-start;
+    z-index: 5;
+    visibility: visible !important;
 }
 
 .typing-text {
@@ -109,11 +111,17 @@ header {
     width: 100%;
     overflow-wrap: break-word;
     white-space: pre-wrap;
+    position: relative;
+    z-index: 10;
+    display: block;
+    visibility: visible !important;
 }
 
 .typing-text span {
     position: relative;
     transition: color 0.1s ease;
+    display: inline-block;
+    visibility: visible !important;
 }
 
 .typing-text span.correct {
@@ -127,6 +135,13 @@ header {
 
 .typing-text span.active {
     color: var(--primary);
+    position: relative;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { color: var(--primary); }
+    50% { color: #ffffff; }
 }
 
 .cursor {
@@ -280,6 +295,21 @@ footer {
 .copyright {
     margin-top: 0.5rem;
     font-size: 0.7rem;
+}
+
+/* Style for the loading text */
+.typing-text .loading {
+    color: var(--primary) !important;
+    font-weight: bold;
+    font-size: 1.2rem;
+    animation: loadingPulse 1.5s infinite;
+    display: inline-block !important;
+    visibility: visible !important;
+}
+
+@keyframes loadingPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 /* Results Screen */

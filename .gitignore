@@ -1,0 +1,53 @@
+# Python bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# TyperMaster specific
+data/
+!data/.gitkeep
+models/
+!models/.gitkeep
+*.pkl
+word_dataset_cache.json
+
+# Logs
+*.log
+logs/
+
+# Test files
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Local config
+config.local.json
