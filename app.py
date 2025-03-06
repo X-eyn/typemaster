@@ -26,12 +26,24 @@ def get_text():
     difficulty = request.args.get('difficulty', 'medium')
     
     # Get personalized text based on user's history if available
-    text = model.generate_text(user_id, difficulty)
-    
-    return jsonify({
-        'text': text,
-        'timestamp': datetime.now().isoformat()
-    })
+    try:
+        text = model.generate_text(user_id, difficulty)
+        
+        # Ensure text is a proper string
+        if not text or not isinstance(text, str):
+            text = "The quick brown fox jumps over the lazy dog. This is a simple typing test."
+        
+        return jsonify({
+            'text': text,
+            'timestamp': datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        })
+    except Exception as e:
+        app.logger.error(f"Error generating text: {e}")
+        return jsonify({
+            'text': "The quick brown fox jumps over the lazy dog. This is a simple typing test.",
+            'timestamp': datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            'error': str(e)
+        })
 
 @app.route('/api/submit_result', methods=['POST'])
 def submit_result():
@@ -60,7 +72,7 @@ def submit_result():
         'wpm': wpm,
         'accuracy': accuracy,
         'mistakes': mistakes,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': str(datetime.now().isoformat())
     })
     
     return jsonify({

@@ -101,7 +101,11 @@ class TypingModel:
             return self.user_models[user_id]
         
         if os.path.exists(model_path):
-            return joblib.load(model_path)
+            try:
+                return joblib.load(model_path)
+            except Exception as e:
+                print(f"Error loading user model: {e}")
+                # Fall back to creating a new model
         
         # Create new user model with default weights
         user_model = {
@@ -123,92 +127,116 @@ class TypingModel:
     
     def generate_text(self, user_id, difficulty='medium'):
         """Generate a typing test text based on user's history and difficulty."""
-        user_model = self._load_user_model(user_id)
-        
-        # For new users or after few sessions, use standard texts
-        if user_model['session_count'] < 3:
-            return self._generate_standard_text(difficulty)
-        
-        # Generate personalized text based on user's mistakes and patterns
-        words = []
-        
-        # Get words with difficult characters for this user
-        difficult_chars = sorted(user_model['character_mistakes'].items(), 
-                                key=lambda x: x[1], reverse=True)
-        
-        # Include some words with user's difficult characters
-        for char, _ in difficult_chars[:5]:
-            candidates = [w for w in self.word_bank[difficulty] if char in w]
-            if candidates:
-                words.extend(random.sample(candidates, min(2, len(candidates))))
-        
-        # Add some words from difficult sequences
-        if user_model['difficult_sequences']:
-            for seq in user_model['difficult_sequences'][:3]:
-                # Find words containing this sequence
-                candidates = [w for w in self.word_bank[difficulty] if seq in w]
-                if candidates:
-                    words.extend(random.sample(candidates, min(2, len(candidates))))
-        
-        # Add some random words from the appropriate difficulty
-        random_words = random.sample(self.word_bank[difficulty], 
-                                     min(20, len(self.word_bank[difficulty])))
-        words.extend(random_words)
-        
-        # Ensure we have enough words and no duplicates
-        words = list(set(words))
-        if len(words) < 25:
-            additional = random.sample(self.word_bank[difficulty], 
-                                      min(25 - len(words), len(self.word_bank[difficulty])))
-            words.extend(additional)
+        try:
+            user_model = self._load_user_model(user_id)
+            
+            # For new users or after few sessions, use standard texts
+            if user_model['session_count'] < 3:
+                return self._generate_standard_text(difficulty)
+            
+            # Generate personalized text based on user's mistakes and patterns
+            words = []
+            
+            # Get words with difficult characters for this user
+            if user_model.get('character_mistakes') and len(user_model['character_mistakes']) > 0:
+                difficult_chars = sorted(user_model['character_mistakes'].items(), 
+                                    key=lambda x: x[1], reverse=True)
+                
+                # Include some words with user's difficult characters
+                for char, _ in difficult_chars[:5]:
+                    candidates = [w for w in self.word_bank[difficulty] if char in w]
+                    if candidates:
+                        words.extend(random.sample(candidates, min(2, len(candidates))))
+            
+            # Add some words from difficult sequences
+            if user_model.get('difficult_sequences') and user_model['difficult_sequences']:
+                for seq in user_model['difficult_sequences'][:3]:
+                    # Find words containing this sequence
+                    candidates = [w for w in self.word_bank[difficulty] if seq in w]
+                    if candidates:
+                        words.extend(random.sample(candidates, min(2, len(candidates))))
+            
+            # Add some random words from the appropriate difficulty
+            if len(self.word_bank[difficulty]) > 0:
+                random_words = random.sample(self.word_bank[difficulty], 
+                                         min(20, len(self.word_bank[difficulty])))
+                words.extend(random_words)
+            
+            # Ensure we have enough words and no duplicates
             words = list(set(words))
-        
-        # Shuffle and limit to a reasonable length
-        random.shuffle(words)
-        words = words[:30]  # Limit to 30 words for a reasonable typing test
-        
-        return ' '.join(words)
+            if len(words) < 25 and len(self.word_bank[difficulty]) > 0:
+                additional = random.sample(self.word_bank[difficulty], 
+                                          min(25 - len(words), len(self.word_bank[difficulty])))
+                words.extend(additional)
+                words = list(set(words))
+            
+            # If we still don't have enough words, fall back to standard text
+            if len(words) < 10:
+                return self._generate_standard_text(difficulty)
+            
+            # Shuffle and limit to a reasonable length
+            random.shuffle(words)
+            words = words[:30]  # Limit to 30 words for a reasonable typing test
+            
+            return ' '.join(words)
+        except Exception as e:
+            print(f"Error generating text: {e}")
+            # Fall back to a simple text in case of any error
+            return "The quick brown fox jumps over the lazy dog. This is a simple typing test to measure your speed and accuracy."
     
     def _generate_standard_text(self, difficulty):
         """Generate a standard typing test text based on difficulty."""
-        word_count = 30  # Default length for a typing test
-        
-        # Select words based on difficulty
-        if difficulty == 'easy':
-            words = random.sample(self.common_words['easy'], 
-                                 min(word_count, len(self.common_words['easy'])))
-            # Repeat sampling if needed to reach word_count
-            while len(words) < word_count:
-                more_words = random.sample(self.common_words['easy'], 
-                                          min(word_count - len(words), len(self.common_words['easy'])))
-                words.extend(more_words)
-        elif difficulty == 'medium':
-            # Mix of easy and medium words
-            easy = random.sample(self.common_words['easy'], word_count // 3)
-            medium = random.sample(self.common_words['medium'], 
-                                  min(word_count - len(easy), len(self.common_words['medium'])))
-            words = easy + medium
-            # Ensure we have enough words
-            while len(words) < word_count:
-                more_words = random.sample(self.common_words['medium'], 
-                                          min(word_count - len(words), len(self.common_words['medium'])))
-                words.extend(more_words)
-        else:  # hard
-            # Mix of medium and hard words
-            medium = random.sample(self.common_words['medium'], word_count // 3)
-            hard = random.sample(self.common_words['hard'], 
-                                min(word_count - len(medium), len(self.common_words['hard'])))
-            words = medium + hard
-            # Ensure we have enough words
-            while len(words) < word_count:
-                more_words = random.sample(self.common_words['hard'], 
-                                          min(word_count - len(words), len(self.common_words['hard'])))
-                words.extend(more_words)
-        
-        # Shuffle words
-        random.shuffle(words)
-        
-        return ' '.join(words)
+        try:
+            word_count = 30  # Default length for a typing test
+            
+            # Select words based on difficulty
+            if difficulty == 'easy':
+                if len(self.common_words['easy']) > 0:
+                    words = random.sample(self.common_words['easy'], 
+                                         min(word_count, len(self.common_words['easy'])))
+                    # Repeat sampling if needed to reach word_count
+                    while len(words) < word_count and len(self.common_words['easy']) > 0:
+                        more_words = random.sample(self.common_words['easy'], 
+                                                  min(word_count - len(words), len(self.common_words['easy'])))
+                        words.extend(more_words)
+                else:
+                    words = ["the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
+            elif difficulty == 'medium':
+                # Mix of easy and medium words
+                easy_words = self.common_words['easy'] if len(self.common_words['easy']) > 0 else ["the", "is", "and", "to"]
+                medium_words = self.common_words['medium'] if len(self.common_words['medium']) > 0 else ["typing", "practice", "keyboard", "skills"]
+                
+                easy = random.sample(easy_words, min(word_count // 3, len(easy_words)))
+                medium = random.sample(medium_words, min(word_count - len(easy), len(medium_words)))
+                words = easy + medium
+                
+                # Ensure we have enough words
+                while len(words) < word_count and len(medium_words) > 0:
+                    more_words = random.sample(medium_words, 
+                                              min(word_count - len(words), len(medium_words)))
+                    words.extend(more_words)
+            else:  # hard
+                # Mix of medium and hard words
+                medium_words = self.common_words['medium'] if len(self.common_words['medium']) > 0 else ["typing", "practice", "keyboard", "skills"]
+                hard_words = self.common_words['hard'] if len(self.common_words['hard']) > 0 else ["algorithm", "sophisticated", "productivity", "efficiency"]
+                
+                medium = random.sample(medium_words, min(word_count // 3, len(medium_words)))
+                hard = random.sample(hard_words, min(word_count - len(medium), len(hard_words)))
+                words = medium + hard
+                
+                # Ensure we have enough words
+                while len(words) < word_count and len(hard_words) > 0:
+                    more_words = random.sample(hard_words, 
+                                              min(word_count - len(words), len(hard_words)))
+                    words.extend(more_words)
+            
+            # Shuffle words
+            random.shuffle(words)
+            
+            return ' '.join(words)
+        except Exception as e:
+            print(f"Error generating standard text: {e}")
+            return "The quick brown fox jumps over the lazy dog. This is a simple typing test to measure your speed and accuracy."
     
     def update(self, user_id, original_text, typed_text, mistakes):
         """Update the model with new typing data."""

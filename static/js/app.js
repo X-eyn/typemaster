@@ -100,14 +100,23 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Fetch new text based on difficulty and user ID
         fetch(`/api/get_text?user_id=${userId}&difficulty=${difficulty}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                if (!data || !data.text) {
+                    throw new Error('Invalid response data');
+                }
                 currentText = data.text;
                 renderText();
                 resetTestState();
             })
             .catch(error => {
                 console.error('Error fetching text:', error);
+                // Fallback text for testing
                 currentText = "The quick brown fox jumps over the lazy dog. This is a simple typing test to measure your speed and accuracy.";
                 renderText();
                 resetTestState();
