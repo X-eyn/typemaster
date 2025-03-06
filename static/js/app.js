@@ -471,18 +471,71 @@ document.addEventListener('DOMContentLoaded', () => {
         showResults(wpm, accuracy, timeInSeconds);
     }
 
-    // Show results screen
+    // Add a dark overlay behind the results screen
+    function addOverlay() {
+        // Remove any existing overlay first
+        removeOverlay();
+        
+        // Create overlay element
+        const overlay = document.createElement('div');
+        overlay.className = 'results-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        overlay.style.zIndex = '999';
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.3s ease';
+        
+        // Add click handler to close results when clicking outside
+        overlay.addEventListener('click', () => {
+            resultsScreen.classList.remove('active');
+            statsScreen.classList.remove('active');
+            removeOverlay();
+        });
+        
+        // Add to body
+        document.body.appendChild(overlay);
+        
+        // Force repaint then fade in
+        setTimeout(() => overlay.style.opacity = '1', 10);
+    }
+    
+    // Remove the overlay
+    function removeOverlay() {
+        const existingOverlay = document.querySelector('.results-overlay');
+        if (existingOverlay) {
+            existingOverlay.style.opacity = '0';
+            setTimeout(() => existingOverlay.remove(), 300);
+        }
+    }
+
+    // Show results screen with smooth animation
     function showResults(wpm, accuracy, timeInSeconds) {
-        // Update result elements
-        resultWpmElement.innerText = wpm;
-        resultAccuracyElement.innerText = `${accuracy}%`;
-        resultTimeElement.innerText = `${timeInSeconds.toFixed(1)}s`;
+        // Make sure any previous results are cleared
+        resultsScreen.classList.remove('active');
         
-        // Display mistake analysis
-        displayMistakeAnalysis();
-        
-        // Show results screen
-        resultsScreen.classList.add('active');
+        // Force a small delay to ensure smooth transition animation
+        setTimeout(() => {
+            // Update result elements
+            resultWpmElement.innerText = wpm;
+            resultAccuracyElement.innerText = `${accuracy}%`;
+            resultTimeElement.innerText = `${timeInSeconds.toFixed(1)}s`;
+            
+            // Display mistake analysis
+            displayMistakeAnalysis();
+            
+            // Show results screen with animation
+            resultsScreen.classList.add('active');
+            
+            // Make sure scrollbar is at the top
+            resultsScreen.scrollTop = 0;
+            
+            // Add an overlay to make the background dim
+            addOverlay();
+        }, 50);
     }
 
     // Display mistake analysis
@@ -498,14 +551,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const perfectElement = document.createElement('div');
             perfectElement.className = 'perfect-score';
             perfectElement.innerText = 'Perfect! No mistakes.';
+            perfectElement.style.animation = 'zoomIn 0.5s ease-out forwards';
+            perfectElement.style.opacity = '0'; // Start invisible for animation
             mistakeCharsElement.appendChild(perfectElement);
             return;
         }
         
-        // Create elements for each mistake
-        sortedMistakes.forEach(([char, count]) => {
+        // Create elements for each mistake with animation
+        sortedMistakes.forEach(([char, count], index) => {
             const mistakeElement = document.createElement('div');
             mistakeElement.className = 'mistake-char';
+            
+            // Add animation with staggered delay based on index
+            mistakeElement.style.animation = `zoomIn 0.5s ease-out ${index * 0.1}s forwards`;
+            mistakeElement.style.opacity = '0'; // Start invisible for animation
             
             const charElement = document.createElement('div');
             charElement.className = 'char';
@@ -521,19 +580,52 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Show stats screen
+    // Show stats screen with enhanced animation
     function showStats() {
         resultsScreen.classList.remove('active');
-        statsScreen.classList.add('active');
         
-        // Fetch user stats
-        fetchUserStats();
+        // Force a small delay to ensure smooth transition animation
+        setTimeout(() => {
+            // Add overlay (or ensure it's still there)
+            addOverlay();
+            
+            statsScreen.classList.add('active');
+            statsScreen.scrollTop = 0; // Ensure scrollbar is at top
+            
+            // Fetch user stats
+            fetchUserStats();
+        }, 50);
     }
 
-    // Hide stats screen
+    // Hide stats screen and return to results
     function hideStats() {
         statsScreen.classList.remove('active');
-        resultsScreen.classList.add('active');
+        
+        setTimeout(() => {
+            resultsScreen.classList.add('active');
+        }, 50);
+    }
+    
+    // Initialize event handlers for the results screen
+    function initResultsEvents() {
+        // Add keyboard event to close results on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (resultsScreen.classList.contains('active') || statsScreen.classList.contains('active')) {
+                    resultsScreen.classList.remove('active');
+                    statsScreen.classList.remove('active');
+                    removeOverlay();
+                    resetTest();
+                }
+            }
+        });
+        
+        // Make sure all result buttons close the overlay properly
+        restartResultBtn.addEventListener('click', () => {
+            resultsScreen.classList.remove('active');
+            removeOverlay();
+            resetTest();
+        });
     }
 
     // Fetch user stats from server

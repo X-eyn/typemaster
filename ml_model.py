@@ -131,6 +131,10 @@ class TypingModel:
     
     def generate_text(self, user_id, difficulty='medium'):
         """Generate a typing test text based on user's history and difficulty."""
+        # Always reset the random seed to ensure different texts each time
+        from datetime import datetime
+        random.seed(int(datetime.now().timestamp() * 1000))
+        
         try:
             user_model = self._load_user_model(user_id)
             
@@ -236,17 +240,47 @@ class TypingModel:
                     raise ValueError("Not enough words returned from dataset")
             except Exception as dataset_error:
                 print(f"Dataset fallback also failed: {dataset_error}")
-                # Last resort - create a more varied fallback text based on difficulty
+                # Last resort - create a more varied fallback text based on timestamp to ensure uniqueness
+                from datetime import datetime
+                timestamp_seed = int(datetime.now().timestamp() * 1000) % 4  # Use timestamp to choose different text each time
+                
+                easy_options = [
+                    "the and to of in a is for you it not with on as at but by from they we say her she",
+                    "this that then those these their they them there who what when where why how many much",
+                    "up down left right top bottom front back side out in over under around through across",
+                    "good bad big small hot cold new old first last early late fast slow hard soft light dark"
+                ]
+                
+                medium_options = [
+                    "typing practice keyboard skills improve accuracy speed fingers position technique learning focus",
+                    "computer systems digital programs software hardware internet browser website online application",
+                    "working together project success business company management leader team goals results progress",
+                    "develop creative thinking problem solving critical analysis learning information knowledge growth"
+                ]
+                
+                hard_options = [
+                    "algorithm functionality implementation infrastructure sophisticated technology development experience performance significant",
+                    "extraordinary communication professional responsibility determination comprehensive psychological intelligence revolutionary organization",
+                    "international representative qualification entrepreneurial administration concentration interpretation visualization consideration",
+                    "philosophical fundamental substantial intellectual establishing possibilities consequences advantageous relationships phenomenal theoretical"
+                ]
+                
                 if difficulty == 'easy':
-                    return "the and to of in a is for you it not with on as at but by from they we say her she"
+                    return easy_options[timestamp_seed % len(easy_options)]
                 elif difficulty == 'hard':
-                    return "algorithm functionality implementation infrastructure sophisticated technology development experience performance significant"
+                    return hard_options[timestamp_seed % len(hard_options)]
                 else:  # medium
-                    return "typing practice keyboard skills improve accuracy speed fingers position technique learning focus"
+                    return medium_options[timestamp_seed % len(medium_options)]
     
     def _generate_standard_text(self, difficulty):
         """Generate a standard typing test text based on difficulty."""
         try:
+            # Set a random seed based on current time to ensure different texts each time
+            from datetime import datetime
+            seed_value = int(datetime.now().timestamp() * 1000) % 10000000
+            random.seed(seed_value)
+            print(f"Using random seed: {seed_value} for text generation")
+            
             # Use our new dataset to get random words based on difficulty
             words = self.word_dataset.get_words_by_difficulty(difficulty, count=30)
             
@@ -254,51 +288,102 @@ class TypingModel:
             if len(words) < 20:
                 word_count = 30  # Default length for a typing test
                 
+                # Enhanced word pools for more variety
+                easy_pool = [
+                    "the", "and", "for", "you", "are", "with", "this", "that", "have", "from",
+                    "they", "will", "one", "all", "would", "there", "their", "what", "out", "about",
+                    "who", "get", "which", "when", "make", "can", "like", "time", "just", "him",
+                    "know", "take", "people", "into", "year", "your", "good", "some", "could", "them"
+                ]
+                
+                medium_pool = [
+                    "typing", "practice", "keyboard", "skills", "improve", "learning", "challenge",
+                    "computer", "system", "program", "develop", "software", "message", "digital", 
+                    "document", "process", "memory", "function", "design", "structure", "project", 
+                    "research", "language", "practice", "complete", "increase", "continue", "position"
+                ]
+                
+                hard_pool = [
+                    "sophisticated", "algorithm", "efficiency", "productivity", "implement", 
+                    "comprehensive", "environment", "authentication", "development", "infrastructure", 
+                    "visualization", "significant", "opportunity", "understanding", "professional", 
+                    "recommendation", "organization", "particularly", "demonstration", "architecture"
+                ]
+                
                 # Select words based on difficulty
                 if difficulty == 'easy':
-                    if len(self.common_words['easy']) > 0:
-                        words = random.sample(self.common_words['easy'], 
-                                             min(word_count, len(self.common_words['easy'])))
-                        # Repeat sampling if needed to reach word_count
-                        while len(words) < word_count and len(self.common_words['easy']) > 0:
-                            more_words = random.sample(self.common_words['easy'], 
-                                                      min(word_count - len(words), len(self.common_words['easy'])))
-                            words.extend(more_words)
-                    else:
-                        words = ["the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog"]
+                    # Use our enhanced pool or fall back to common words if available
+                    word_source = easy_pool
+                    if len(self.common_words['easy']) > 20:  # Only use if we have a good number
+                        word_source = self.common_words['easy'] + easy_pool  # Combine for more variety
+                        
+                    # Sample with replacement to ensure we get enough unique words
+                    words = []
+                    while len(set(words)) < word_count and len(word_source) > 0:
+                        word = random.choice(word_source)
+                        if words.count(word) < 2:  # Allow max 2 occurrences of same word
+                            words.append(word)
+                            
                 elif difficulty == 'medium':
-                    # Mix of easy and medium words
-                    easy_words = self.common_words['easy'] if len(self.common_words['easy']) > 0 else ["the", "is", "and", "to"]
-                    medium_words = self.common_words['medium'] if len(self.common_words['medium']) > 0 else ["typing", "practice", "keyboard", "skills"]
+                    # Mix of easy and medium words for medium difficulty
+                    easy_words = easy_pool
+                    medium_words = medium_pool
                     
-                    easy = random.sample(easy_words, min(word_count // 3, len(easy_words)))
-                    medium = random.sample(medium_words, min(word_count - len(easy), len(medium_words)))
-                    words = easy + medium
+                    if len(self.common_words['easy']) > 10:
+                        easy_words = easy_words + self.common_words['easy']
+                    if len(self.common_words['medium']) > 10:
+                        medium_words = medium_words + self.common_words['medium']
                     
-                    # Ensure we have enough words
-                    while len(words) < word_count and len(medium_words) > 0:
-                        more_words = random.sample(medium_words, 
-                                                  min(word_count - len(words), len(medium_words)))
-                        words.extend(more_words)
+                    # Create a balanced mix
+                    words = []
+                    while len(set(words)) < word_count:
+                        # 70% chance of medium word, 30% chance of easy word
+                        if random.random() < 0.7 and len(words) < word_count * 0.7:
+                            words.append(random.choice(medium_words))
+                        else:
+                            words.append(random.choice(easy_words))
+                        
+                        # Prevent too many duplicates
+                        if words.count(words[-1]) > 2:
+                            words.pop()
                 else:  # hard
-                    # Mix of medium and hard words
-                    medium_words = self.common_words['medium'] if len(self.common_words['medium']) > 0 else ["typing", "practice", "keyboard", "skills"]
-                    hard_words = self.common_words['hard'] if len(self.common_words['hard']) > 0 else ["algorithm", "sophisticated", "productivity", "efficiency"]
+                    # Mix of medium and hard words for hard difficulty
+                    medium_words = medium_pool
+                    hard_words = hard_pool
                     
-                    medium = random.sample(medium_words, min(word_count // 3, len(medium_words)))
-                    hard = random.sample(hard_words, min(word_count - len(medium), len(hard_words)))
-                    words = medium + hard
+                    if len(self.common_words['medium']) > 10:
+                        medium_words = medium_words + self.common_words['medium']
+                    if len(self.common_words['hard']) > 10:
+                        hard_words = hard_words + self.common_words['hard']
                     
-                    # Ensure we have enough words
-                    while len(words) < word_count and len(hard_words) > 0:
-                        more_words = random.sample(hard_words, 
-                                                  min(word_count - len(words), len(hard_words)))
-                        words.extend(more_words)
+                    # Create a balanced but challenging mix
+                    words = []
+                    while len(set(words)) < word_count:
+                        # 70% chance of hard word, 30% chance of medium word
+                        if random.random() < 0.7 and len(words) < word_count * 0.7:
+                            words.append(random.choice(hard_words))
+                        else:
+                            words.append(random.choice(medium_words))
+                            
+                        # Prevent too many duplicates
+                        if words.count(words[-1]) > 2:
+                            words.pop()
             
-            # Shuffle words
-            random.shuffle(words)
+            # Ensure we have unique words (no more than 2 of the same word)
+            word_counts = {}
+            unique_words = []
+            for word in words:
+                if word_counts.get(word, 0) < 2:  # Allow max 2 occurrences
+                    unique_words.append(word)
+                    word_counts[word] = word_counts.get(word, 0) + 1
             
-            return ' '.join(words)
+            # Shuffle words to randomize the order
+            random.shuffle(unique_words)
+            
+            # Limit to a reasonable length
+            unique_words = unique_words[:30]
+            
+            return ' '.join(unique_words)
         except Exception as e:
             print(f"Error generating standard text: {e}")
             # Try directly using the word dataset with no fancy logic
@@ -313,13 +398,33 @@ class TypingModel:
                     raise ValueError("WordDataset returned empty list")
             except Exception as dataset_error:
                 print(f"Direct dataset fallback failed: {dataset_error}")
-                # Absolutely last resort - different texts by difficulty
-                if difficulty == 'easy':
-                    return "short easy words for basic typing practice to improve your skills"
-                elif difficulty == 'hard':
-                    return "sophisticated vocabulary enhances comprehensive writing capabilities demonstrating professional communication abilities"
-                else:  # medium
-                    return "practice makes perfect when learning to type efficiently and accurately on a keyboard"
+                # Last resort - generate a varied text based on timestamp to ensure each test is unique
+                timestamp_hash = hash(str(datetime.now().timestamp()))
+                fallback_texts = {
+                    'easy': [
+                        "short easy words for basic typing practice to improve your skills",
+                        "type these simple words to get better at using your keyboard quickly",
+                        "practice with common words to build your typing speed and confidence",
+                        "easy text for beginners who want to learn how to type correctly"
+                    ],
+                    'medium': [
+                        "practice makes perfect when learning to type efficiently and accurately on a keyboard",
+                        "developing typing skills requires consistent practice and focused attention to detail",
+                        "improve your typing speed by working on finger placement and rhythm techniques",
+                        "regular keyboard practice helps build muscle memory for faster accurate typing"
+                    ],
+                    'hard': [
+                        "sophisticated vocabulary enhances comprehensive writing capabilities demonstrating professional communication abilities",
+                        "implementation of algorithmic solutions requires meticulous attention to computational efficiency considerations",
+                        "extraordinary circumstances necessitate immediate reconfiguration of organizational infrastructure priorities",
+                        "mathematical representations of quantum mechanical phenomena illustrate fundamental physical characteristics"
+                    ]
+                }
+                
+                # Select a random text based on difficulty but use timestamp to make it less predictable
+                options = fallback_texts.get(difficulty, fallback_texts['medium'])
+                selection_index = abs(timestamp_hash) % len(options)
+                return options[selection_index]
     
     def update(self, user_id, original_text, typed_text, mistakes):
         """Update the model with new typing data."""
